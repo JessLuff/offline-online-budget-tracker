@@ -1,11 +1,11 @@
 let db;
-let offlineBudget;
+let budgetVersion;
 
 // Create a new db request for a "budget" database.
-const request = indexedDB.open('BudgetDB', offlineBudget || 21);
+const request = indexedDB.open('BudgetDB', budgetVersion || 21);
 
 request.onupgradeneeded = function (e) {
-  console.log('DB needs update');
+  console.log('Upgrade needed in IndexDB');
 
   const { oldVersion } = e;
   const newVersion = e.newVersion || db.version;
@@ -15,27 +15,29 @@ request.onupgradeneeded = function (e) {
   db = e.target.result;
 
   if (db.objectStoreNames.length === 0) {
-    db.createObjectStore('OfflineStorage', { autoIncrement: true });
+    db.createObjectStore('BudgetStore', { autoIncrement: true });
   }
 };
 
 request.onerror = function (e) {
-  console.log(`Whoops! ${e.target.errorCode}`);
+  console.log(`Woops! ${e.target.errorCode}`);
 };
 
 function checkDatabase() {
-  
-  // Create new entry in database
-  let transaction = db.transaction(['OfflineStorage'], 'readwrite');
+  console.log('check db invoked');
 
-  const store = transaction.objectStore('OfflineStorage');
+  // Open a transaction on your BudgetStore db
+  let transaction = db.transaction(['BudgetStore'], 'readwrite');
 
-  // Get all entries
+  // access your BudgetStore object
+  const store = transaction.objectStore('BudgetStore');
+
+  // Get all records from store and set to a variable
   const getAll = store.getAll();
 
-  // On successful return,
+  // If the request was successful
   getAll.onsuccess = function () {
-    // Add offline entries in bulk
+    // If there are items in the store, we need to bulk add them when we are back online
     if (getAll.result.length > 0) {
       fetch('/api/transaction/bulk', {
         method: 'POST',
@@ -47,16 +49,17 @@ function checkDatabase() {
       })
         .then((response) => response.json())
         .then((res) => {
-          // If there are offline entries
+          // If our returned response is not empty
           if (res.length !== 0) {
-            //  Create new database entry
-            transaction = db.transaction(['OfflineStorage'], 'readwrite');
+            // Open another transaction to BudgetStore with the ability to read and write
+            transaction = db.transaction(['BudgetStore'], 'readwrite');
 
-            // Assign current entry to variable
-            const currentStore = transaction.objectStore('OfflineStorage');
+            // Assign the current store to a variable
+            const currentStore = transaction.objectStore('BudgetStore');
 
-            // Clear saved offline entries
+            // Clear existing entries because our bulk add was successful
             currentStore.clear();
+            console.log('Clearing store 🧹');
           }
         });
     }
@@ -76,11 +79,11 @@ request.onsuccess = function (e) {
 
 const saveRecord = (record) => {
   console.log('Save record invoked');
-  // Create a transaction on the OfflineStorage db with readwrite access
-  const transaction = db.transaction(['OfflineStorage'], 'readwrite');
+  // Create a transaction on the BudgetStore db with readwrite access
+  const transaction = db.transaction(['BudgetStore'], 'readwrite');
 
-  // Access your OfflineStorage object store
-  const store = transaction.objectStore('OfflineStorage');
+  // Access your BudgetStore object store
+  const store = transaction.objectStore('BudgetStore');
 
   // Add record to your store with add method.
   store.add(record);
