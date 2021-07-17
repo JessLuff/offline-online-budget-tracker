@@ -1,11 +1,11 @@
 let db;
 let budgetVersion;
 
-// Create a new db request for a "budget" database.
+// Connect to database
 const request = indexedDB.open('BudgetDB', budgetVersion || 21);
 
 request.onupgradeneeded = function (e) {
-  console.log('Upgrade needed in IndexDB');
+  console.log('Databse update required');
 
   const { oldVersion } = e;
   const newVersion = e.newVersion || db.version;
@@ -20,24 +20,22 @@ request.onupgradeneeded = function (e) {
 };
 
 request.onerror = function (e) {
-  console.log(`Woops! ${e.target.errorCode}`);
+  console.log(`Error code: ${e.target.errorCode}`);
 };
 
 function checkDatabase() {
-  console.log('check db invoked');
+  console.log('Confirm database');
 
-  // Open a transaction on your BudgetStore db
+  // Create new database entry
   let transaction = db.transaction(['BudgetStore'], 'readwrite');
 
-  // access your BudgetStore object
+  // Set all entries from storage to variable
   const store = transaction.objectStore('BudgetStore');
-
-  // Get all records from store and set to a variable
   const getAll = store.getAll();
 
   // If the request was successful
   getAll.onsuccess = function () {
-    // If there are items in the store, we need to bulk add them when we are back online
+    // If offline entries exist, add them in bulk
     if (getAll.result.length > 0) {
       fetch('/api/transaction/bulk', {
         method: 'POST',
@@ -51,15 +49,15 @@ function checkDatabase() {
         .then((res) => {
           // If our returned response is not empty
           if (res.length !== 0) {
-            // Open another transaction to BudgetStore with the ability to read and write
+            // Create new database entry
             transaction = db.transaction(['BudgetStore'], 'readwrite');
 
-            // Assign the current store to a variable
+            // Assign current storage
             const currentStore = transaction.objectStore('BudgetStore');
 
-            // Clear existing entries because our bulk add was successful
+            // Clear processed offline entries
             currentStore.clear();
-            console.log('Clearing store 🧹');
+            console.log('Storage cleared');
           }
         });
     }
@@ -70,24 +68,22 @@ request.onsuccess = function (e) {
   console.log('success');
   db = e.target.result;
 
-  // Check if app is online before reading from db
+  // Confirm app has connected to database
   if (navigator.onLine) {
-    console.log('Backend online! 🗄️');
+    console.log('Backend connected');
     checkDatabase();
   }
 };
 
 const saveRecord = (record) => {
   console.log('Save record invoked');
-  // Create a transaction on the BudgetStore db with readwrite access
+  // Create new database entry
   const transaction = db.transaction(['BudgetStore'], 'readwrite');
 
-  // Access your BudgetStore object store
+  // Add offline entry to storage
   const store = transaction.objectStore('BudgetStore');
-
-  // Add record to your store with add method.
   store.add(record);
 };
 
-// Listen for app coming back online
+// Listen for app to reconnect
 window.addEventListener('online', checkDatabase);
